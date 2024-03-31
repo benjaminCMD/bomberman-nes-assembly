@@ -1,6 +1,20 @@
 .include "constants.inc"
 .include "header.inc"
 
+.segment "ZEROPAGE"
+player_x: .res 1
+player_y: .res 1
+
+player_xb: .res 1
+player_yb: .res 1
+
+player_xr: .res 1
+player_yr: .res 1
+
+player_xl: .res 1
+player_yl: .res 1
+.exportzp player_x, player_y
+
 .segment "CODE"
 .proc irq_handler
   RTI
@@ -11,37 +25,346 @@
   STA OAMADDR
   LDA #$02
   STA OAMDMA
-	LDA #$00
-	STA $2005
-	STA $2005
+
+  JSR draw_player_front
+  JSR draw_player_back
+  JSR draw_player_right
+  JSR draw_player_left
+
+  LDA #$00
+  STA $2005
+  STA $2005
   RTI
+.endproc
+
+.proc draw_player_back
+  ; save registers
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ; write player ship tile numbers
+  LDA #$06
+  STA $0201
+  LDA #$07
+  STA $0205
+  LDA #$16
+  STA $0209
+  LDA #$17
+  STA $020d
+
+  ; write player ship tile attributes
+  ; use palette 0
+  LDA #$00
+  STA $0202
+  STA $0206
+  STA $020a
+  STA $020e
+
+  ; top left tile:
+  LDA player_yb
+  STA $0200
+  LDA player_xb
+  STA $0203
+
+  ; top right tile (x + 8):
+  LDA player_yb
+  STA $0204
+  LDA player_xb
+  CLC
+  ADC #$08
+  STA $0207
+
+  ; bottom left tile (y + 8):
+  LDA player_yb
+  CLC
+  ADC #$08
+  STA $0208
+  LDA player_xb
+  STA $020b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_yb
+  CLC
+  ADC #$08
+  STA $020c
+  LDA player_xb
+  CLC
+  ADC #$08
+  STA $020f
+
+  ; restore registers and return
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+
+.proc draw_player_left
+  ; save registers
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ; write player ship tile numbers
+  LDA #$22
+  STA $0201
+  LDA #$23
+  STA $0205
+  LDA #$32
+  STA $0209
+  LDA #$33
+  STA $020d
+
+  ; write player ship tile attributes
+  ; use palette 0
+  LDA #$00
+  STA $0202
+  STA $0206
+  STA $020a
+  STA $020e
+
+  ; top left tile:
+  LDA player_yl
+  STA $0200
+  LDA player_xl
+  STA $0203
+
+  ; top right tile (x + 8):
+  LDA player_yl
+  STA $0204
+  LDA player_xl
+  CLC
+  ADC #$08
+  STA $0207
+
+  ; bottom left tile (y + 8):
+  LDA player_yl
+  CLC
+  ADC #$08
+  STA $0208
+  LDA player_xl
+  STA $020b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_yl
+  CLC
+  ADC #$08
+  STA $020c
+  LDA player_xl
+  CLC
+  ADC #$08
+  STA $020f
+
+  ; restore registers and return
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+.proc draw_player_right
+  ; save registers
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ; write player ship tile numbers
+  LDA #$0c
+  STA $0201
+  LDA #$0d
+  STA $0205
+  LDA #$1c
+  STA $0209
+  LDA #$1d
+  STA $020d
+
+  ; write player ship tile attributes
+  ; use palette 0
+  LDA #$00
+  STA $0202
+  STA $0206
+  STA $020a
+  STA $020e
+
+  ; top left tile:
+  LDA player_yr
+  STA $0200
+  LDA player_xr
+  STA $0203
+
+  ; top right tile (x + 8):
+  LDA player_yr
+  STA $0204
+  LDA player_xr
+  CLC
+  ADC #$08
+  STA $0207
+
+  ; bottom left tile (y + 8):
+  LDA player_yr
+  CLC
+  ADC #$08
+  STA $0208
+  LDA player_xr
+  STA $020b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_yr
+  CLC
+  ADC #$08
+  STA $020c
+  LDA player_xr
+  CLC
+  ADC #$08
+  STA $020f
+
+  ; restore registers and return
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
+.endproc
+
+
+.proc draw_player_front
+  ; save registers
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+
+  ; write player ship tile numbers
+  LDA #$00
+  STA $0201
+  LDA #$01
+  STA $0205
+  LDA #$10
+  STA $0209
+  LDA #$11
+  STA $020d
+
+  ; write player ship tile attributes
+  ; use palette 0
+  LDA #$00
+  STA $0202
+  STA $0206
+  STA $020a
+  STA $020e
+
+  ; top left tile:
+  LDA player_y
+  STA $0200
+  LDA player_x
+  STA $0203
+
+  ; top right tile (x + 8):
+  LDA player_y
+  STA $0204
+  LDA player_x
+  CLC
+  ADC #$08
+  STA $0207
+
+  ; bottom left tile (y + 8):
+  LDA player_y
+  CLC
+  ADC #$08
+  STA $0208
+  LDA player_x
+  STA $020b
+
+  ; bottom right tile (x + 8, y + 8)
+  LDA player_y
+  CLC
+  ADC #$08
+  STA $020c
+  LDA player_x
+  CLC
+  ADC #$08
+  STA $020f
+
+  ; restore registers and return
+  PLA
+  TAY
+  PLA
+  TAX
+  PLA
+  PLP
+  RTS
 .endproc
 
 .import reset_handler
 
 .export main
 .proc main
+
+ ; initialize zero-page values
+  LDA #$90
+  STA player_x
+  LDA #$a0
+  STA player_y
+
+  LDA #$70
+  STA player_xb
+  LDA #$a0
+  STA player_yb
+
+
+  LDA #$90
+  STA player_xr
+  LDA #$a8
+  STA player_yr
+
+  LDA #$70
+  STA player_xl
+  LDA #$a8
+  STA player_yl
+
+
   ; write a palette
   LDX PPUSTATUS
   LDX #$3f
   STX PPUADDR
   LDX #$00
   STX PPUADDR
+
 load_palettes:
   LDA palettes,X
   STA PPUDATA
   INX
   CPX #$20
   BNE load_palettes
-
   ; write sprite data
   LDX #$00
-load_sprites:
-  LDA sprites,X
-  STA $0200,X
-  INX
-  CPX #$c0
-  BNE load_sprites
+
+; load_sprites:
+;   LDA forward,X
+;   STA $0200,X
+;   INX
+;   CPX #$c0
+;   BNE load_sprites
 
 	; write nametables
 	; loading in top-left tile from texture 1
@@ -388,6 +711,7 @@ palettes:
 .byte $0f, $0c, $23, $14
 .byte $0f, $19, $09, $29
 .byte $0f, $19, $09, $29
+
 
 sprites:
 ;      y   tile palette  x		; static front

@@ -1,4 +1,6 @@
 .include "constants.inc"
+.segment "ZEROPAGE"
+.importzp player_x, player_y
 
 .segment "CODE"
 .import main
