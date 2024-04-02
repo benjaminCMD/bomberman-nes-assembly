@@ -7,6 +7,8 @@ player_y: .res 1
 ;player_dir: .res 1
 frame_position: .res 1
 frame_buffer: .res 1
+dpad: .res 1
+
 .exportzp player_x, player_y, frame_position, frame_buffer
 
 .segment "CODE"
@@ -23,8 +25,12 @@ frame_buffer: .res 1
 
   ; update tiles *after* DMA transfer
 	;JSR update_player
-	JSR update_frame
 	JSR draw_player_idle
+	JSR read_controller1
+	JSR update_player
+	JSR update_frame
+	;JSR draw_player_idle
+
 	; JSR draw_player_down
 	; JSR draw_player_up
 	; JSR draw_player_left
@@ -114,51 +120,47 @@ exit_subroutine:
 
 
 
-; .proc update_player
-;   PHP
-;   PHA
-;   TXA
-;   PHA
-;   TYA
-;   PHA
+.proc update_player
+  PHP
+  PHA
+  TXA
+  PHA
+  TYA
+  PHA
+  check_left:
+	LDA dpad
+	AND #BTN_LEFT
+	BEQ check_right
+	DEC player_x
+	JSR draw_player_left
+  check_right:
+	LDA dpad
+	AND #BTN_RIGHT
+	BEQ check_up
+	INC player_x
+	JSR draw_player_right
+  check_up:
+	LDA dpad
+	AND #BTN_UP
+	BEQ check_down
+	DEC player_y
+	JSR draw_player_up
+  check_down:
+	LDA dpad
+	AND #BTN_DOWN
+	BEQ done_checking
+	INC player_y
+	JSR draw_player_down
 
-;   LDA player_x
-;   CMP #$e0
-;   BCC not_at_right_edge
-;   ; if BCC is not taken, we are greater than $e0
-;   LDA #$00
-;   STA player_dir    ; start moving left
-;   JMP direction_set ; we already chose a direction,
-;                     ; so we can skip the left side check
-; not_at_right_edge:
-;   LDA player_x
-;   CMP #$10
-;   BCS direction_set
-;   ; if BCS not taken, we are less than $10
-;   LDA .#$01
-;   STA player_dir   ; start moving right
-; direction_set:
-;   ; now, actually update player_x
-;   LDA player_dir
-;   CMP #$01
-;   BEQ move_right
-;   ; if player_dir minus $01 is not zero,
-;   ; that means player_dir was $00 and
-;   ; we need to move left
-;   DEC player_x
-;   JMP exit_subroutine
-; move_right:
-;   INC player_x
-;exit_subroutine:
-;   ; all done, clean up and return
-;   PLA
-;   TAY
-;   PLA
-;   TAX
-;   PLA
-;   PLP
-;   RTS
-; .endproc
+   done_checking:
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+.endproc
 
 .proc draw_player_up
 	; save registers
@@ -173,23 +175,23 @@ exit_subroutine:
 
 	LDA frame_position
 	CLC 
-	ADC #$00
+	ADC #$06
 	STA $0201
 
 
 	LDA frame_position
 	CLC 
-	ADC #$01
+	ADC #$07
 	STA $0205
 
 	LDA frame_position
 	CLC 
-	ADC #$10
+	ADC #$16
 	STA $0209
 
 	LDA frame_position
 	CLC 
-	ADC #$11
+	ADC #$17
 	STA $020d
 
 	; write player ship tile attributes
@@ -256,23 +258,23 @@ exit_subroutine:
 
 	LDA frame_position
 	CLC 
-	ADC #$06
+	ADC #$00
 	STA $0201
 
 
 	LDA frame_position
 	CLC 
-	ADC #$07
+	ADC #$01
 	STA $0205
 
 	LDA frame_position
 	CLC 
-	ADC #$16
+	ADC #$10
 	STA $0209
 
 	LDA frame_position
 	CLC 
-	ADC #$17
+	ADC #$11
 	STA $020d
 
 	; write player ship tile attributes
@@ -575,6 +577,36 @@ exit_subroutine:
 
 
 .endproc
+
+.proc read_controller1
+ PHA
+ TXA
+ PHA
+ PHP
+
+ LDA #01
+ STA CONTROLLER1
+ LDA #00
+ STA CONTROLLER1
+
+ LDA #%00000001
+
+ STA dpad
+
+get_buttons:
+  LDA CONTROLLER1
+  LSR A
+  ROL dpad
+  BCC get_buttons
+  PLP
+  PLA
+  TAX
+  PLA
+  RTS
+.endproc
+
+
+
 
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
