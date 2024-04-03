@@ -584,19 +584,20 @@ exit_subroutine:
  PHA
  PHP
 
+
  LDA #01
- STA CONTROLLER1
+ STA CONTROLLER1 ; controller's shift register set in data collection mode
  LDA #00
- STA CONTROLLER1
+ STA CONTROLLER1; sets controller into output mode
 
  LDA #%00000001
 
  STA dpad
 
 get_buttons:
-  LDA CONTROLLER1
-  LSR A
-  ROL dpad
+  LDA CONTROLLER1 ; loads the leftmost bit into the accumalator
+  LSR A ; shifts bit0 -> carry
+  ROL dpad ; dpad value <- carry
   BCC get_buttons
   PLP
   PLA

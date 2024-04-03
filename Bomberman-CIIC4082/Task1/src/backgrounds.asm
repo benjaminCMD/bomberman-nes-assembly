@@ -397,12 +397,6 @@ sprites:
 .byte $78, $10, $00, $70  ;left side of body
 .byte $78, $11, $00, $78  ;right side of body
 
-; one of the bomberman's sprite 
-; .byte $70, $41, $01, $78  ;right side of face
-; .byte $70, $40, $01, $70  ;left side of face
-; .byte $78, $50, $01, $70  ;left side of body
-; .byte $78, $51, $01, $78  ;right side of body
-
 .byte $70, $02, $00, $80
 .byte $70, $03, $00, $88   ; moving front (left hand)
 .byte $78, $12, $00, $80
