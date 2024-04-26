@@ -21,6 +21,7 @@ mapIndex: .res 1
 
 .exportzp player_x, player_y, frame_position, frame_buffer
 
+
 .segment "CODE"
 .proc irq_handler
   RTI
@@ -60,12 +61,21 @@ mapIndex: .res 1
 	STX PPUADDR
 	LDX #$00
 	STX PPUADDR
+	
+	
 	load_palettes:
 	LDA palettes,X
 	STA PPUDATA
 	INX
 	CPX #$20
 	BNE load_palettes
+
+	LDA PPUSTATUS
+	LDA #$20
+	STA PPUADDR
+	LDA #$00
+	STA PPUADDR
+	JSR loadWorld1
 
 
 	vblankwait:       ; wait for another vblank before continuing
@@ -79,7 +89,7 @@ mapIndex: .res 1
 
 	forever:
 	JMP forever
-	.endproc
+.endproc
 
 
 .proc update_frame
@@ -625,38 +635,39 @@ mapIndex: .res 1
 	PHA
 
 	decode:
-	
-	LDA level
-	LSR A
-	LSR A 
-	STA metaIndexY
+		LDA level
+		LSR A
+		LSR A 
+		STA metaIndexY
 
-	LDA level
-	AND #%00000011
-	STA metaIndexX
+		LDA level
+		AND #%00000011
+		STA metaIndexX
 
-	LDA metaIndexY
-	LSR A
-	LSR A
-	AND #%00000011
-	STA highBit
+		LDA metaIndexY
+		LSR A
+		LSR A
+		AND #%00000011
+		STA highBit
 
-	LDA metaIndexX
-	ASL A 
-	ASL A 
-	ASL A 
-	
-	LDA metaIndexY
-	ASL A
-	ASL A
-	ASL A
-	ASL A
-	ASL A
-	ASL A
-	
-	CLC 
-	ADC metaIndexX
-	STA lowBit
+		LDA metaIndexX
+		ASL A 
+		ASL A 
+		ASL A 
+		STA metaIndexX
+		
+		LDA metaIndexY
+		ASL A
+		ASL A
+		ASL A
+		ASL A
+		ASL A
+		ASL A
+		
+		
+		CLC 
+		ADC metaIndexX
+		STA lowBit
 
 	PLA
 	TAY
@@ -682,8 +693,8 @@ mapIndex: .res 1
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
-	LDA blocks
-	STA PPUDATA
+	LDX blocks
+	STX PPUDATA
 
 
 	LDA PPUSTATUS
@@ -695,8 +706,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$01
 	STA PPUADDR
-	LDA blocks+1
-	STA PPUDATA
+	LDX blocks+1
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -707,8 +718,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$20
 	STA PPUADDR
-	LDA blocks+2
-	STA PPUDATA
+	LDX blocks+2
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -719,8 +730,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$21
 	STA PPUADDR
-	LDA blocks+3
-	STA PPUDATA
+	LDX blocks+3
+	STX PPUDATA
 
 
 	PLA
@@ -747,8 +758,8 @@ mapIndex: .res 1
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
-	LDA blocks+4
-	STA PPUDATA
+	LDX blocks+4
+	STX PPUDATA
 
 
 	LDA PPUSTATUS
@@ -760,8 +771,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$01
 	STA PPUADDR
-	LDA blocks+5
-	STA PPUDATA
+	LDX blocks+5
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -772,8 +783,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$20
 	STA PPUADDR
-	LDA blocks+6
-	STA PPUDATA
+	LDX blocks+6
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -784,8 +795,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$21
 	STA PPUADDR
-	LDA blocks+7
-	STA PPUDATA
+	LDX blocks+7
+	STX PPUDATA
 
 
 	PLA
@@ -813,8 +824,8 @@ mapIndex: .res 1
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
-	LDA blocks+8
-	STA PPUDATA
+	LDX blocks+8
+	STX PPUDATA
 
 
 	LDA PPUSTATUS
@@ -826,8 +837,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$01
 	STA PPUADDR
-	LDA blocks+9
-	STA PPUDATA
+	LDX blocks+9
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -838,8 +849,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$20
 	STA PPUADDR
-	LDA blocks+10
-	STA PPUDATA
+	LDX blocks+10
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -850,8 +861,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$21
 	STA PPUADDR
-	LDA blocks+11
-	STA PPUDATA
+	LDX blocks+11
+	STX PPUDATA
 
 
 	PLA
@@ -879,8 +890,8 @@ mapIndex: .res 1
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
-	LDA blocks+12
-	STA PPUDATA
+	LDX blocks+12
+	STX PPUDATA
 
 
 	LDA PPUSTATUS
@@ -892,8 +903,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$01
 	STA PPUADDR
-	LDA blocks+12
-	STA PPUDATA
+	LDX blocks+12
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -904,8 +915,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$20
 	STA PPUADDR
-	LDA blocks+12
-	STA PPUDATA
+	LDX blocks+12
+	STX PPUDATA
 
 	LDA PPUSTATUS
 	LDA highBit
@@ -916,8 +927,8 @@ mapIndex: .res 1
 	CLC 
 	ADC #$21
 	STA PPUADDR
-	LDA blocks+12
-	STA PPUDATA
+	LDX blocks+12
+	STX PPUDATA
 
 
 	PLA
@@ -988,7 +999,11 @@ mapIndex: .res 1
 		ASL mapIndex
 
 		INX 
-		CPX $04
+
+		INC lowBit
+		INC lowBit
+
+		CPX #$04
 		BNE start
 
 
@@ -1002,6 +1017,50 @@ mapIndex: .res 1
 .endproc
 
 .proc loadWorld1
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDX #$00
+
+	load_background1:
+		LDY #$20
+		STY NTB_offset
+		STX level
+		LDA nametable1_lvl1, x
+		STA mapIndex
+
+		JSR DecodeMetatile
+		JSR loadLevel
+		INX
+		CPX #$3c
+		BNE load_background1
+
+	LDX #$00
+	STX level
+	load_background2:
+		LDY #$24
+		STY NTB_offset
+		STX level
+		LDA nametable2_lvl1, x
+		STA mapIndex
+
+		JSR DecodeMetatile
+		JSR loadLevel
+		INX
+		CPX #$3c
+		BNE load_background2
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
 
 .endproc
 
@@ -1021,13 +1080,6 @@ palettes:
 .byte $0f, $19, $09, $29
 .byte $0f, $19, $09, $29
 
-.segment "CHR"
-.incbin "starfield6.chr"
-
-.segment "CHARS"
-.segment "STARTUP"
-
-
 nametable1_lvl1:
 	.byte %01010101, %01010101, %01010101, %01010101
 	.byte %01000000, %00000011, %11111111, %00000001
@@ -1036,7 +1088,7 @@ nametable1_lvl1:
 
 	.byte %01000011, %11100010, %10001010, %10101001
 	.byte %01101010, %11101111, %10001000, %00000000
-	.byte %01101010, %11101111, %10001000, %00001001
+	.byte %01000011, %11101010, %10001000, %00001001
 	.byte %01001000, %00000010, %00000010, %00001001
 
 	.byte %01001000, %00101010, %00100010, %00001001
@@ -1046,12 +1098,13 @@ nametable1_lvl1:
 
 	.byte %01111010, %00101010, %00101110, %10001001
 	.byte %01000000, %00000010, %00100010, %10001001
+	.byte %01010101, %01010101, %01010101, %01010101
 
 nametable2_lvl1:
 	.byte %01010101, %01010101, %01010101, %01010101
 	.byte %01001000, %00000000, %00000000, %00000001
 	.byte %01111011, %10101010, %10101110, %11101001
-	.byte %11111111, %11000010, %10101110, %11100001
+	.byte %01111111, %11000010, %10101110, %11100001
 
 	.byte %01101010, %10100000, %00101110, %11100001
 	.byte %00000000, %00100010, %10100010, %00100001
@@ -1065,6 +1118,7 @@ nametable2_lvl1:
 
 	.byte %01101110, %10100010, %10100010, %00100000
 	.byte %01101111, %11100000, %00000010, %00100001
+	.byte %01010101, %01010101, %01010101, %01010101
 
 nametable1_lvl2:
 	.byte %01010101, %01010101, %01010101, %01010101
@@ -1084,6 +1138,7 @@ nametable1_lvl2:
 
 	.byte %01001010, %11101010, %10101110, %00100001
 	.byte %01000011, %11110000, %00100010, %00100001
+	.byte %01010101, %01010101, %01010101, %01010101
 
 nametable2_lvl2:
 	.byte %01010101, %01010101, %01010101, %01010101
@@ -1103,6 +1158,7 @@ nametable2_lvl2:
 
 	.byte %01001010, %10101010, %10101010, %10100001
 	.byte %01000011, %11111100, %00000000, %00100000
+	.byte %01010101, %01010101, %01010101, %01010101
 
 
 blocks:
@@ -1110,5 +1166,12 @@ blocks:
 	.byte $30, $31, $40, $41 ; broken brick block
 	.byte $34, $35, $44, $45 ; grass block
 	.byte $38, $39, $48, $49 ; floor block
+
+
+.segment "CHR"
+.incbin "starfield8.chr"
+
+.segment "CHARS"
+.segment "STARTUP"
 
 
