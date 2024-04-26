@@ -15,6 +15,8 @@ lowBit: .res 1
 level: .res 1
 NTB_offset: .res 1
 mapIndex: .res 1
+worldFlag: .res 1
+scroll: .res 1
 
 
 
@@ -69,13 +71,54 @@ mapIndex: .res 1
 	INX
 	CPX #$20
 	BNE load_palettes
+	
 
-	LDA PPUSTATUS
-	LDA #$20
-	STA PPUADDR
-	LDA #$00
-	STA PPUADDR
-	JSR loadWorld1
+	LDA worldFlag
+	CMP #$00
+	BEQ world1
+	CMP #$01
+	BEQ world2
+	JMP continue
+
+	world1:
+		LDA PPUSTATUS
+		LDA #$20
+		STA PPUADDR
+		LDA #$00
+		STA PPUADDR
+
+
+		LDA #$00
+		STA PPUCTRL
+		STA PPUMASK
+
+		JSR loadWorld1
+
+		LDA #%10010000  ; turn on NMIs, sprites use first pattern table
+		STA PPUCTRL
+		LDA #%00011110  ; turn on screen
+		STA PPUMASK
+		JMP continue
+
+	world2:
+		LDA PPUSTATUS
+		LDA #$20
+		STA PPUADDR
+		LDA #$00
+		STA PPUADDR
+
+		LDA #$00
+		STA PPUCTRL
+		STA PPUMASK
+
+		JSR loadWorld2
+
+		LDA #%10010000  ; turn on NMIs, sprites use first pattern table
+		STA PPUCTRL
+		LDA #%00011110  ; turn on screen
+		STA PPUMASK
+
+	continue:
 
 
 	vblankwait:       ; wait for another vblank before continuing
@@ -151,8 +194,24 @@ mapIndex: .res 1
 	LDA dpad
 	AND #BTN_LEFT
 	BEQ check_right
-	DEC player_x
+	;DEC player_x
 	JSR draw_player_left
+
+	LDA scroll
+	CMP #$01
+	BEQ hitLeftCorner
+
+	LDA player_x
+	CMP #$80
+	BNE hitLeftCorner
+
+	DEC scroll
+	JMP check_right
+
+	hitLeftCorner: 
+	DEC player_x
+
+
   check_right:
 	LDA dpad
 	AND #BTN_RIGHT
@@ -168,9 +227,28 @@ mapIndex: .res 1
   check_down:
 	LDA dpad
 	AND #BTN_DOWN
-	BEQ done_checking
+	BEQ check_A
 	INC player_y
 	JSR draw_player_down
+   check_A:
+	LDA dpad
+	AND #%10000000
+	BEQ done_checking
+
+
+
+	LDA worldFlag
+	CMP #$00
+	BEQ jump_main
+	CMP #$01
+	BEQ jump_main
+	JMP done_checking
+
+	jump_main:
+		INC worldFlag
+		JMP main
+	
+
 
    done_checking:
 	PLA
@@ -181,6 +259,30 @@ mapIndex: .res 1
 	PLP
 	RTS
 .endproc
+
+
+.proc startscroll
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDA scroll
+	STA PPUSCROLL
+	LDA #$00
+	LDA PPUSCROLL
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+.endproc
+
 
 .proc draw_player_up
 	; save registers
@@ -1016,6 +1118,27 @@ mapIndex: .res 1
 	RTS
 .endproc
 
+.proc scrolling
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDA scroll
+	STA $2005
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
 .proc loadWorld1
 	PHP
 	PHA
@@ -1064,6 +1187,53 @@ mapIndex: .res 1
 
 .endproc
 
+.proc loadWorld2
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDX #$00
+
+	load_background3:
+		LDY #$20
+		STY NTB_offset
+		STX level
+		LDA nametable1_lvl2, x
+		STA mapIndex
+
+		JSR DecodeMetatile
+		JSR loadLevel
+		INX
+		CPX #$3c
+		BNE load_background3
+
+	LDX #$00
+	STX level
+	load_background4:
+		LDY #$24
+		STY NTB_offset
+		STX level
+		LDA nametable2_lvl2, x
+		STA mapIndex
+
+		JSR DecodeMetatile
+		JSR loadLevel
+		INX
+		CPX #$3c
+		BNE load_background4
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
 
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
