@@ -197,7 +197,6 @@ scrollLimit: .res 1
 	JSR draw_player_left
 
 	LDA scroll
-	; CMP #$01
 	DEC scroll
 	BEQ updateNTBLeft
 	JMP check_right
@@ -216,6 +215,8 @@ scrollLimit: .res 1
 
 
 	resetNameTableLeft:
+		LDA #$ff
+		STA scroll
 		LDA #$00
 		STA PPUCTRL
 		LDA #%10010000
