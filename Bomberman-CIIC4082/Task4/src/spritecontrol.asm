@@ -17,6 +17,7 @@ NTB_offset: .res 1
 mapIndex: .res 1
 worldFlag: .res 1
 scroll: .res 1
+scrollLimit: .res 1
 
 
 
@@ -48,8 +49,7 @@ scroll: .res 1
 	; JSR draw_player_up
 	; JSR draw_player_left
 	; JSR draw_player_right
-	STA $2005
-	STA $2005
+	JSR startscroll
   RTI
 .endproc
 
@@ -194,30 +194,85 @@ scroll: .res 1
 	LDA dpad
 	AND #BTN_LEFT
 	BEQ check_right
-	;DEC player_x
 	JSR draw_player_left
 
 	LDA scroll
-	CMP #$01
-	BEQ hitLeftCorner
-
-	LDA player_x
-	CMP #$80
-	BNE hitLeftCorner
-
+	; CMP #$01
 	DEC scroll
+	BEQ updateNTBLeft
 	JMP check_right
 
-	hitLeftCorner: 
-	DEC player_x
+	updateNTBLeft:
+		LDX scrollLimit
+		CPX #$01
+		BEQ resetNameTableLeft
+		JMP check_right
+		LDA #$00
+		STA PPUCTRL
+		LDA #%10010001
+		STA PPUCTRL
+		INC scrollLimit
+		JMP check_right
+
+
+	resetNameTableLeft:
+		LDA #$00
+		STA PPUCTRL
+		LDA #%10010000
+		STA PPUCTRL
+		DEC scrollLimit
+
+
+	; LDA scroll
+	; CMP #$01
+	; BEQ hitLeftCorner
+
+	; LDA player_x
+	; CMP #$80
+	; BNE hitLeftCorner
+
+	; DEC scroll
+	; JMP check_right
+
+	; hitLeftCorner: 
+	; DEC player_x
 
 
   check_right:
 	LDA dpad
 	AND #BTN_RIGHT
 	BEQ check_up
-	INC player_x
 	JSR draw_player_right
+
+	INC scroll
+	LDA scroll
+	CMP #$ff
+	BEQ updateNTB
+	JMP check_up
+
+	updateNTB:
+		LDX scrollLimit
+		CPX #$01
+		BEQ resetNameTable
+		LDA #$00
+		STA PPUCTRL
+		LDA #%10010001
+		STA PPUCTRL
+		INC scrollLimit
+		JMP check_up
+
+
+	resetNameTable:
+		LDA #$00
+		STA PPUCTRL
+		LDA #%10010000
+		STA PPUCTRL
+		DEC scrollLimit
+
+
+
+
+
   check_up:
 	LDA dpad
 	AND #BTN_UP
@@ -272,7 +327,7 @@ scroll: .res 1
 	LDA scroll
 	STA PPUSCROLL
 	LDA #$00
-	LDA PPUSCROLL
+	STA PPUSCROLL
 
 	PLA
 	TAY
@@ -1118,27 +1173,6 @@ scroll: .res 1
 	RTS
 .endproc
 
-.proc scrolling
-	PHP
-	PHA
-	TXA
-	PHA
-	TYA
-	PHA
-
-	LDA scroll
-	STA $2005
-
-
-	PLA
-	TAY
-	PLA
-	TAX
-	PLA
-	PLP
-	RTS
-
-.endproc
 .proc loadWorld1
 	PHP
 	PHA
