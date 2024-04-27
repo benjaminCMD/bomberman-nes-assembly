@@ -33,9 +33,9 @@ clear_oam:
 	BNE clear_oam
 
 	; initialize zero-page values
-	LDA #$00
+	LDA #$0f
 	STA player_x
-	LDA #$00
+	LDA #$13
 	STA player_y
   LDA #$00
   STA frame_position

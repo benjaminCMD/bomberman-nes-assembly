@@ -78,7 +78,7 @@ scrollLimit: .res 1
 	BEQ world1
 	CMP #$01
 	BEQ world2
-	JMP continue
+	JMP main_end
 
 	world1:
 		LDA PPUSTATUS
@@ -93,12 +93,15 @@ scrollLimit: .res 1
 		STA PPUMASK
 
 		JSR loadWorld1
+		JSR load_world1_attributes
 
-		LDA #%10010000  ; turn on NMIs, sprites use first pattern table
-		STA PPUCTRL
-		LDA #%00011110  ; turn on screen
-		STA PPUMASK
-		JMP continue
+		; LDA #%10010000  ; turn on NMIs, sprites use first pattern table
+		; STA PPUCTRL
+		; LDA #%00011110  ; turn on screen
+		; STA PPUMASK
+		JMP main_end
+
+
 
 	world2:
 		LDA PPUSTATUS
@@ -112,13 +115,19 @@ scrollLimit: .res 1
 		STA PPUMASK
 
 		JSR loadWorld2
+		JSR load_world2_attributes
 
-		LDA #%10010000  ; turn on NMIs, sprites use first pattern table
-		STA PPUCTRL
-		LDA #%00011110  ; turn on screen
-		STA PPUMASK
+		; LDA #%10010000  ; turn on NMIs, sprites use first pattern table
+		; STA PPUCTRL
+		; LDA #%00011110  ; turn on screen
+		; STA PPUMASK
 
-	continue:
+	main_end:
+
+	LDA #%10010000  ; turn on NMIs, sprites use first pattern table
+	STA PPUCTRL
+	LDA #%00011110  ; turn on screen
+	STA PPUMASK
 
 
 	vblankwait:       ; wait for another vblank before continuing
@@ -196,10 +205,27 @@ scrollLimit: .res 1
 	BEQ check_right
 	JSR draw_player_left
 
+	; LDA scrollLimit
+	; CMP #$00
+	; BEQ stayOnLeftCorner
+	
+
+	; stayOnLeftCorner:
+	; 	LDA scroll
+	; 	CMP #$00
+	; 	BEQ spriteStill
+	; 	JMP check_right
+	; 	spriteStill:
+	; 		LDA #$00
+	; 		STA scroll
+	; 		JMP proceed
+
+
+	proceed: 
 	LDA scroll
-	DEC scroll
+	CMP #$00
 	BEQ updateNTBLeft
-	JMP check_right
+	JMP scrollLeft
 
 	updateNTBLeft:
 		LDX scrollLimit
@@ -215,8 +241,6 @@ scrollLimit: .res 1
 
 
 	resetNameTableLeft:
-		LDA #$ff
-		STA scroll
 		LDA #$00
 		STA PPUCTRL
 		LDA #%10010000
@@ -224,19 +248,9 @@ scrollLimit: .res 1
 		DEC scrollLimit
 
 
-	; LDA scroll
-	; CMP #$01
-	; BEQ hitLeftCorner
+	scrollLeft: 
+		DEC scroll
 
-	; LDA player_x
-	; CMP #$80
-	; BNE hitLeftCorner
-
-	; DEC scroll
-	; JMP check_right
-
-	; hitLeftCorner: 
-	; DEC player_x
 
 
   check_right:
@@ -1270,13 +1284,104 @@ scrollLimit: .res 1
 
 .endproc
 
+.proc load_world1_attributes
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDX #$00
+    LDA PPUSTATUS
+    LDA #$23
+    STA PPUADDR
+    LDA #$c0 
+    STA PPUADDR
+  	loadattribute:
+		LDY #%00000000
+		STY PPUDATA
+		INX
+		CPX #$40
+		BNE loadattribute
+
+
+    LDX #$00
+    LDA PPUSTATUS
+    LDA #$27
+    STA PPUADDR
+    LDA #$c0 
+    STA PPUADDR
+	loadattribute1:
+		LDY #%00000000
+		STY PPUDATA
+		INX
+		CPX #$40
+		BNE loadattribute1
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc load_world2_attributes
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDA PPUSTATUS
+    LDA #$23
+    STA PPUADDR
+    LDA #$c0
+    STA PPUADDR
+	LDX #$00   
+	loadattribute2:
+		LDY #%01010101
+		STY PPUDATA
+		INX
+		CPX #$40
+		BNE loadattribute2
+
+
+
+    LDA PPUSTATUS
+    LDA #$27
+    STA PPUADDR
+    LDA #$c0
+    STA PPUADDR   
+	LDX #$00
+	loadattribute3:
+		LDY #%01010101
+		STY PPUDATA
+		INX
+		CPX #$40
+		BNE loadattribute3
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
 
 .segment "RODATA"
 palettes:
-.byte $0f, $12, $23, $27
-.byte $0f, $2b, $3c, $39
+.byte $0f, $05, $16, $27
+.byte $0f, $12, $23, $34
 .byte $0f, $0c, $07, $13
 .byte $0f, $19, $09, $29
 
