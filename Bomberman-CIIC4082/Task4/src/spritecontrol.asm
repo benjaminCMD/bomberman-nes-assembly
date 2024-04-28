@@ -193,126 +193,138 @@ scrollLimit: .res 1
 
 
 .proc update_player
-  PHP
-  PHA
-  TXA
-  PHA
-  TYA
-  PHA
-  check_left:
-	LDA dpad
-	AND #BTN_LEFT
-	BEQ check_right
-	JSR draw_player_left
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+  	check_left:
+		LDA dpad
+		AND #BTN_LEFT
+		BEQ check_right
+		JSR draw_player_left
 
-	; LDA scrollLimit
-	; CMP #$00
-	; BEQ stayOnLeftCorner
+		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
+		CMP #$00
+		BEQ ScrollModeLeft ; uses scroll to move the sprite left
+		CMP #$01
+		BEQ UnScrollModeLeft ; uses player_x to move the sprite left
+
+		ScrollModeLeft:
+
+		LDA scroll 
+		CMP #$00 ; checks if the scroll is initially 0
+		BEQ check_right ; if so, then stay on that nametable if its hits the edge of the screen
+		JMP scrollLeft ; if the scroll value is higher, then the sprite can move left
+
+		updateScreen_checkerRTL: ; Checks if the sprite is in the left edge of the second screen
+			LDX scrollLimit 
+			CPX #$01
+			BEQ MoveToLeftScreen ; if it is, then actually update the screen
+			JMP check_right
+
+
+		MoveToLeftScreen: ; updates the screen from right to left
+			LDA #$ff ; since we are switching screens, I want the sprite to be on the right edge of screen 1
+			STA scroll
+			LDA #$00 ; when modifying the background, always turn off render with PPUCTRL
+			STA PPUCTRL
+			LDA #%10010000 ; then we turn on the rendering
+			STA PPUCTRL
+			DEC scrollLimit ; once it renders, we set the flag to 0 indicating we are on the first screen
+			JMP check_right 
+
+
+		scrollLeft: 
+			DEC scroll
+			JMP check_right
 	
-
-	; stayOnLeftCorner:
-	; 	LDA scroll
-	; 	CMP #$00
-	; 	BEQ spriteStill
+	; hitLeftCorner:
+	; 	LDA player_x
+	; 	CLC 
+	; 	ADC #$0f
+	; 	STA player_x
+	; 	DEC scroll
 	; 	JMP check_right
-	; 	spriteStill:
-	; 		LDA #$00
-	; 		STA scroll
-	; 		JMP proceed
+
+	
+	UnScrollModeLeft: ; once the sprite is on the second screen, we disable scroll
+		DEC player_x ; use the sprite's x coordinate to make it move left
+		LDA player_x 
+		CMP #$00 ; checks if the sprite is on the left edge of the second screen
+		BEQ updateScreen_checkerRTL ; if it is, then go update the screen
 
 
-	proceed: 
-	LDA scroll
-	CMP #$00
-	BEQ updateNTBLeft
-	JMP scrollLeft
 
-	updateNTBLeft:
+
+
+	check_right:
+		LDA dpad
+		AND #BTN_RIGHT
+		BEQ check_up
+		JSR draw_player_right
+
+
+		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
+		CMP #$00
+		BEQ ScrollModeRight ; uses scroll to move the sprite right
+		CMP #$01
+		BEQ UnScrollModeRight ; uses player to move the sprite right
+
+
+	ScrollModeRight: 
+		LDA scroll ; 
+		CMP #$ff ; checks if the sprite is on the right edge of the first screen using scroll value
+		BEQ updateScreen_checkerLTR ; if it is, then go update the screen
+		JMP scrollRight ; if not, then moving the sprite right
+
+	updateScreen_checkerLTR:
 		LDX scrollLimit
-		CPX #$01
-		BEQ resetNameTableLeft
-		JMP check_right
-		LDA #$00
+		CPX #$00 ; checks if the sprite is on the first screen
+		BEQ MoveToRightScreen ; if it is, then move towards the right screen
+		JMP check_up 
+
+
+	MoveToRightScreen:
+		LDA #$00 ; turn off the rendering
 		STA PPUCTRL
-		LDA #%10010001
+		LDA #%10010001 ; turn it back on
 		STA PPUCTRL
-		INC scrollLimit
-		JMP check_right
+		INC scrollLimit ; then increase the flag to indicate if the sprite is on the second screen
 
-
-	resetNameTableLeft:
-		LDA #$00
-		STA PPUCTRL
-		LDA #%10010000
-		STA PPUCTRL
-		DEC scrollLimit
-
-
-	scrollLeft: 
-		DEC scroll
-
-
-
-  check_right:
-	LDA dpad
-	AND #BTN_RIGHT
-	BEQ check_up
-	JSR draw_player_right
-
-	INC scroll
-	LDA scroll
-	CMP #$ff
-	BEQ updateNTB
-	JMP check_up
-
-	updateNTB:
-		LDX scrollLimit
-		CPX #$01
-		BEQ resetNameTable
-		LDA #$00
-		STA PPUCTRL
-		LDA #%10010001
-		STA PPUCTRL
-		INC scrollLimit
+	scrollRight:
+		INC scroll
 		JMP check_up
 
+	UnScrollModeRight: ; when unscroll mode, then player_x is incremented so it can move right
+		INC player_x
 
-	resetNameTable:
-		LDA #$00
-		STA PPUCTRL
-		LDA #%10010000
-		STA PPUCTRL
-		DEC scrollLimit
-
-
-
-
-
-  check_up:
-	LDA dpad
-	AND #BTN_UP
-	BEQ check_down
-	DEC player_y
-	JSR draw_player_up
-  check_down:
-	LDA dpad
-	AND #BTN_DOWN
-	BEQ check_A
-	INC player_y
-	JSR draw_player_down
-   check_A:
-	LDA dpad
-	AND #%10000000
-	BEQ done_checking
+	check_up:
+		LDA dpad
+		AND #BTN_UP
+		BEQ check_down
+		DEC player_y
+		JSR draw_player_up
+	check_down:
+		LDA dpad
+		AND #BTN_DOWN
+		BEQ check_A
+		INC player_y
+		JSR draw_player_down
+	check_A:
+		LDA dpad
+		AND #%10000000
+		BEQ done_checking
 
 
 
-	LDA worldFlag
-	CMP #$00
-	BEQ jump_main
-	CMP #$01
-	BEQ jump_main
-	JMP done_checking
+		LDA worldFlag
+		CMP #$00
+		BEQ jump_main
+		CMP #$01
+		BEQ jump_main
+		JMP done_checking
 
 	jump_main:
 		INC worldFlag
