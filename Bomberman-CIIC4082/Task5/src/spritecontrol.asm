@@ -2,22 +2,30 @@
 .include "header.inc"
 
 .segment "ZEROPAGE"
-player_x: .res 1
-player_y: .res 1
-;player_dir: .res 1
-frame_position: .res 1
-frame_buffer: .res 1
-dpad: .res 1
-metaIndexX: .res 1 ; Myb
-metaIndexY: .res 1 ; Mxb
-highBit: .res 1 ; hight-bit address for the tiles loaded per level
-lowBit: .res 1 ; low-bit address for the tiles loaded per level
-level: .res 1 ; indicates current position of the map
-NTB_offset: .res 1 ; offset added to the high-bit since  hight-bit calculates from 00 to 08
-mapIndex: .res 1 ; a copy of current level number 
-worldFlag: .res 1 ; indicates the current world number
-scroll: .res 1 ; used to scroll increment scroll horizontally
-scrollLimit: .res 1 ; indicates when the scroll has reached its limit
+player_x: .res 1 ; $00
+player_y: .res 1 ; $01
+player_dir: .res 1 ; $02
+frame_position: .res 1 ; $03
+frame_buffer: .res 1 ; $04
+dpad: .res 1 ; $05
+metaIndexX: .res 1 ; $06 - Mxb 
+metaIndexY: .res 1 ; $07 - Myb
+highBit: .res 1 ; $08 - hight-bit address for the tiles loaded per level
+lowBit: .res 1 ; $09 - low-bit address for the tiles loaded per level
+level: .res 1 ; $0a - indicates current position of the map
+NTB_offset: .res 1 ; $0b - offset added to the high-bit since  hight-bit calculates from 00 to 08
+mapIndex: .res 1 ; $0c - a copy of current level number 
+worldFlag: .res 1 ; $0d - indicates the current world number
+scroll: .res 1 ; $0e - used to scroll increment scroll horizontally
+scrollLimit: .res 1 ; $0f -indicates when the scroll has reached its limit
+absX: .res 1; $10 - the true position of the sprite
+BlockX: .res 1 ; $11
+currentMxb: .res 1 ; $12
+currentMyb: .res 1 ; $13
+currentlvl: .res 1 ; $14
+colX: .res 1 ; $15
+colY: .res 1 ; $16
+
 
 
 
@@ -50,6 +58,8 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 	; JSR draw_player_left
 	; JSR draw_player_right
 	JSR startscroll
+	JSR FindCurrentLevel
+
   RTI
 .endproc
 
@@ -187,7 +197,9 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA dpad
 		AND #BTN_LEFT
 		BEQ check_right
+		STA player_dir
 		JSR draw_player_left
+
 
 		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
 		CMP #$00
@@ -240,6 +252,7 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA dpad
 		AND #BTN_RIGHT
 		BEQ check_up
+		STA player_dir
 		JSR draw_player_right
 
 
@@ -281,12 +294,14 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA dpad
 		AND #BTN_UP
 		BEQ check_down
+		STA player_dir
 		DEC player_y
 		JSR draw_player_up
 	check_down:
 		LDA dpad
 		AND #BTN_DOWN
 		BEQ check_A
+		STA player_dir
 		INC player_y
 		JSR draw_player_down
 	check_A:
@@ -1361,6 +1376,128 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 	RTS
 
 .endproc
+
+.proc FindCurrentLevel
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDA scroll
+	CLC 
+	ADC colX ; at this moment, A = absoluteX
+	STA absX
+
+	LSR A ; shift right A/4 = absX/16
+	LSR A
+	LSR A
+	LSR A
+	STA BlockX ; the byte range for x between 0-15
+
+	LSR A  ; shift right A/2 = absX/4
+	LSR A  
+	STA currentMxb
+
+
+
+	LDY colY
+	TYA 
+	LSR A ; shift right A/4 = player_y/16
+	LSR A ;
+	LSR A ;
+	LSR A ;
+
+	ASL A ; shift left A*2 = player_y * 4
+	ASL A 
+	CLC 
+	ADC currentMxb ; then add player_y into currentMxb
+	STA currentlvl ; the final result is the current player's level
+
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc 
+
+
+.proc FindColPixel
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	check_collision_left:
+		LDA player_dir
+		AND #BTN_LEFT
+		BEQ check_collision_right
+		LDA player_x
+		CLC 
+		SBC #$01
+		STA colX
+		LDY player_y
+		STY colY
+
+	check_collision_right:
+		LDA player_dir
+		AND #BTN_RIGHT
+		BEQ check_collision_down
+		LDA player_x
+		CLC 
+		ADC #$10
+		STA colX
+
+		LDY player_y
+		STY colY
+
+		
+
+	check_collision_down: 
+		LDA player_dir
+		AND #BTN_DOWN
+		BEQ check_collision_up
+		LDA player_x
+		STA colX
+		LDA player_y
+		CLC 
+		ADC #$10
+		STA colY
+
+
+
+	check_collision_up:
+		LDA player_dir
+		AND #BTN_UP
+		BEQ check_end
+		LDA player_x
+		STA colX
+		LDA player_y
+		CLC 
+		SBC #$01
+		STA colY
+
+
+	check_end:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc 
 
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
