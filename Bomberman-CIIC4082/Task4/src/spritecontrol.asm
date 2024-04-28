@@ -8,16 +8,16 @@ player_y: .res 1
 frame_position: .res 1
 frame_buffer: .res 1
 dpad: .res 1
-metaIndexX: .res 1
-metaIndexY: .res 1
-highBit: .res 1
-lowBit: .res 1
-level: .res 1
-NTB_offset: .res 1
-mapIndex: .res 1
-worldFlag: .res 1
-scroll: .res 1
-scrollLimit: .res 1
+metaIndexX: .res 1 ; Myb
+metaIndexY: .res 1 ; Mxb
+highBit: .res 1 ; hight-bit address for the tiles loaded per level
+lowBit: .res 1 ; low-bit address for the tiles loaded per level
+level: .res 1 ; indicates current position of the map
+NTB_offset: .res 1 ; offset added to the high-bit since  hight-bit calculates from 00 to 08
+mapIndex: .res 1 ; a copy of current level number 
+worldFlag: .res 1 ; indicates the current world number
+scroll: .res 1 ; used to scroll increment scroll horizontally
+scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 
 
 
@@ -81,53 +81,37 @@ scrollLimit: .res 1
 	JMP main_end
 
 	world1:
-		LDA PPUSTATUS
+		LDA PPUSTATUS ; initialize the nameatable world tile addresss
 		LDA #$20
 		STA PPUADDR
 		LDA #$00
 		STA PPUADDR
 
 
-		LDA #$00
+		LDA #$00 ; when rendering new background, recommended to turn off PPUCTRL and PPUMASK
 		STA PPUCTRL
 		STA PPUMASK
 
-		JSR loadWorld1
-		JSR load_world1_attributes
-
-		; LDA #%10010000  ; turn on NMIs, sprites use first pattern table
-		; STA PPUCTRL
-		; LDA #%00011110  ; turn on screen
-		; STA PPUMASK
-		JMP main_end
+		JSR loadWorld1 ; renders the background for world 1
+		JSR load_world1_attributes ; renders the backgrounds colors for world 2
+		JMP vblankwait ; once the rendering is done, ignore world 2 and turn rendering back on
 
 
 
 	world2:
-		LDA PPUSTATUS
+		LDA PPUSTATUS ; initialize the nameatable world tile addresss
 		LDA #$20
 		STA PPUADDR
 		LDA #$00
 		STA PPUADDR
 
-		LDA #$00
+		LDA #$00 ; turn off the rendering
 		STA PPUCTRL
 		STA PPUMASK
 
-		JSR loadWorld2
-		JSR load_world2_attributes
-
-		; LDA #%10010000  ; turn on NMIs, sprites use first pattern table
-		; STA PPUCTRL
-		; LDA #%00011110  ; turn on screen
-		; STA PPUMASK
-
-	main_end:
-
-	LDA #%10010000  ; turn on NMIs, sprites use first pattern table
-	STA PPUCTRL
-	LDA #%00011110  ; turn on screen
-	STA PPUMASK
+		JSR loadWorld2 ; renders the background for world 2
+		JSR load_world2_attributes ; renders the backgrounds colors for world 2
+		
 
 
 	vblankwait:       ; wait for another vblank before continuing
@@ -241,14 +225,6 @@ scrollLimit: .res 1
 			DEC scroll
 			JMP check_right
 	
-	; hitLeftCorner:
-	; 	LDA player_x
-	; 	CLC 
-	; 	ADC #$0f
-	; 	STA player_x
-	; 	DEC scroll
-	; 	JMP check_right
-
 	
 	UnScrollModeLeft: ; once the sprite is on the second screen, we disable scroll
 		DEC player_x ; use the sprite's x coordinate to make it move left
@@ -315,20 +291,20 @@ scrollLimit: .res 1
 		JSR draw_player_down
 	check_A:
 		LDA dpad
-		AND #%10000000
-		BEQ done_checking
+		AND #BTN_A ; checks if the button A is pressed
+		BEQ done_checking ; if not pressed, then skip over it and  
 
 
-
-		LDA worldFlag
-		CMP #$00
-		BEQ jump_main
-		CMP #$01
-		BEQ jump_main
+		; if A is pressed, then it will execute the code below
+		LDA worldFlag ; a flag which background stages are being loaded currently
+		CMP #$00 ; if world 1 is being loaded, then load in world 2
+		BEQ jump_main 
+		CMP #$01 ;  if world 2 is being loaded, then load in world 3 (sadly this world was never properly implemented)
+		BEQ jump_main 
 		JMP done_checking
 
-	jump_main:
-		INC worldFlag
+	jump_main: ; increments the world flag and jump backs to main to load new in the new background
+		INC worldFlag 
 		JMP main
 	
 
@@ -353,9 +329,9 @@ scrollLimit: .res 1
 	PHA
 
 	LDA scroll
-	STA PPUSCROLL
-	LDA #$00
-	STA PPUSCROLL
+	STA PPUSCROLL ; a register which allows to move the screen along with the player
+	LDA #$00 ;  scroll has a x & y coordinates: 0 is added to make the screen move horizontally, not diagonally
+	STA PPUSCROLL 
 
 	PLA
 	TAY
@@ -820,39 +796,37 @@ scrollLimit: .res 1
 	PHA
 
 	decode:
-		LDA level
-		LSR A
+		LDA level ; megatile index represented as a btyw
+		LSR A ; Shift that index right: level/2 to calculaye Myb
 		LSR A 
-		STA metaIndexY
+		STA metaIndexY ; Store Myb into the memeory
 
 		LDA level
-		AND #%00000011
-		STA metaIndexX
+		AND #%00000011 ; level mod 4 
+		STA metaIndexX ; store value into Mxb
 
-		LDA metaIndexY
+		LDA metaIndexY ; Stores in Myb into the accumalator 
+		LSR A ; Myb/4 again 
 		LSR A
-		LSR A
-		AND #%00000011
-		STA highBit
+		AND #%00000011; then do bitmask comparions: Myb mod 4
+		STA highBit ; the final result is gonna be our hight bit for PPUADRR
 
-		LDA metaIndexX
+		LDA metaIndexX ; loads Mxb into the accumalator
+		ASL A ; Shift left three times: metaIndex * 8
 		ASL A 
 		ASL A 
-		ASL A 
-		STA metaIndexX
+		STA metaIndexX ; then stores the updated value
 		
-		LDA metaIndexY
+		LDA metaIndexY ; laod Myb into A 
+		ASL A ; Shift left six times: Myb*64
 		ASL A
 		ASL A
 		ASL A
 		ASL A
-		ASL A
-		ASL A
-		
-		
+		ASL A ; the updated Myb is in A
 		CLC 
-		ADC metaIndexX
-		STA lowBit
+		ADC metaIndexX ; then add the current Mxb value into A
+		STA lowBit ; the final result gives the low-bit for PPUADRR
 
 	PLA
 	TAY
@@ -871,49 +845,49 @@ scrollLimit: .res 1
 	TYA
 	PHA
 
-	LDA PPUSTATUS
-	LDA highBit
+	LDA PPUSTATUS ; sequence to load in the top-left tile
+	LDA highBit 
 	CLC
-	ADC NTB_offset
+	ADC NTB_offset ; manages the offset for the high-bit
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
-	LDX blocks
+	LDX blocks 
 	STX PPUDATA
 
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$01
+	ADC #$01 ; Add 1 to lowBit so the tile can be printed on the top right
 	STA PPUADDR
 	LDX blocks+1
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-left tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$20
+	ADC #$20 ; Add 32 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+2
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$21
+	ADC #$21 ; Add 33 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+3
 	STX PPUDATA
@@ -936,10 +910,10 @@ scrollLimit: .res 1
 	TYA
 	PHA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-left tile
 	LDA highBit
 	CLC
-	ADC NTB_offset
+	ADC NTB_offset ; manages the offset for the high-bit
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
@@ -947,38 +921,38 @@ scrollLimit: .res 1
 	STX PPUDATA
 
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$01
+	ADC #$01 ; Add 1 to lowBit so the tile can be printed on the top right
 	STA PPUADDR
 	LDX blocks+5
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-left tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$20
+	ADC #$20 ; Add 32 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+6
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$21
+	ADC #$21 ; Add 33 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+7
 	STX PPUDATA
@@ -1002,10 +976,10 @@ scrollLimit: .res 1
 	TYA
 	PHA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-left tile
 	LDA highBit
 	CLC
-	ADC NTB_offset
+	ADC NTB_offset ; manages the offset for the high-bit
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
@@ -1013,26 +987,26 @@ scrollLimit: .res 1
 	STX PPUDATA
 
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$01
+	ADC #$01 ; Add 1 to lowBit so the tile can be printed on the top right
 	STA PPUADDR
 	LDX blocks+9
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-left tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$20
+	ADC #$20 ; Add 32 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+10
 	STX PPUDATA
@@ -1040,11 +1014,11 @@ scrollLimit: .res 1
 	LDA PPUSTATUS
 	LDA highBit
 	CLC
-	ADC NTB_offset
+	ADC NTB_offset ; sequence to load in the bottom-right tile
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$21
+	ADC #$21 ; Add 33 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+11
 	STX PPUDATA
@@ -1068,10 +1042,10 @@ scrollLimit: .res 1
 	TYA
 	PHA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-left tile
 	LDA highBit
 	CLC
-	ADC NTB_offset
+	ADC NTB_offset ; manages the offset for the high-bit
 	STA PPUADDR
 	LDA lowBit
 	STA PPUADDR
@@ -1079,38 +1053,38 @@ scrollLimit: .res 1
 	STX PPUDATA
 
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the top-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$01
+	ADC #$01 ; Add 1 to lowBit so the tile can be printed on the top right
 	STA PPUADDR
 	LDX blocks+12
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-left tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$20
+	ADC #$20 ; Add 32 to lowBit so the tile can be printed on the bottom-left
 	STA PPUADDR
 	LDX blocks+12
 	STX PPUDATA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to load in the bottom-right tile
 	LDA highBit
 	CLC
 	ADC NTB_offset
 	STA PPUADDR
 	LDA lowBit
 	CLC 
-	ADC #$21
+	ADC #$21 ; Add 32 to lowBit so the tile can be printed on the bottom-right
 	STA PPUADDR
 	LDX blocks+12
 	STX PPUDATA
@@ -1137,7 +1111,7 @@ scrollLimit: .res 1
 	LDX #$00
 
 	start:
-	LDA mapIndex
+	LDA mapIndex ; stores in the byte sequence of a specific nametable
 	AND #%11000000 
 	CMP #%00000000 ; checking if the block is a floor
 	BEQ floor
@@ -1161,19 +1135,19 @@ scrollLimit: .res 1
 
 
 	floor: 
-		JSR load_floor
+		JSR load_floor ; 00
 		JMP blockLoop
 
 	brick: 
-		JSR load_brick
+		JSR load_brick ; 01
 		JMP blockLoop
 
 	broken_brick: 
-		JSR load_broken_brick
+		JSR load_broken_brick ; 10
 		JMP blockLoop
 
 	grass: 
-		JSR load_grass
+		JSR load_grass ; 11
 		JMP blockLoop
 	
 
@@ -1183,12 +1157,12 @@ scrollLimit: .res 1
 		ASL mapIndex
 		ASL mapIndex
 
-		INX 
+		INX ; the iterator counter 
 
-		INC lowBit
+		INC lowBit ;  updating the base low-bit index so it can print the other tiles
 		INC lowBit
 
-		CPX #$04
+		CPX #$04 ;  if x <= 4, break out of the loop
 		BNE start
 
 
@@ -1212,32 +1186,32 @@ scrollLimit: .res 1
 	LDX #$00
 
 	load_background1:
-		LDY #$20
-		STY NTB_offset
-		STX level
+		LDY #$20 ; nametable 1
+		STY NTB_offset ; placing the initial offset into the highBit
+		STX level ; current index section within the map 
 		LDA nametable1_lvl1, x
-		STA mapIndex
+		STA mapIndex ; the byte used to print the tiles
 
-		JSR DecodeMetatile
-		JSR loadLevel
-		INX
-		CPX #$3c
+		JSR DecodeMetatile ; decode to get the highBit and lowBit value
+		JSR loadLevel ; prints the entire level sequence from left to right
+		INX ; iterator counter
+		CPX #$3c ; total amount of bytes within our nametable labels 
 		BNE load_background1
 
 	LDX #$00
 	STX level
 	load_background2:
-		LDY #$24
-		STY NTB_offset
-		STX level
+		LDY #$24 ; nametable2
+		STY NTB_offset ; placing the initial offset into the highBit
+		STX level ; current index section within the map 
 		LDA nametable2_lvl1, x
-		STA mapIndex
+		STA mapIndex ; the byte used to print the tiles
 
-		JSR DecodeMetatile
-		JSR loadLevel
-		INX
-		CPX #$3c
-		BNE load_background2
+		JSR DecodeMetatile ; decode to get the highBit and lowBit value
+		JSR loadLevel  ; prints the entire level sequence from left to right
+		INX ; iterator counter
+		CPX #$3c ; total amount of bytes within our nametable labels 
+		BNE load_background2 ; total amount of bytes within our nametable labels 
 
 	PLA
 	TAY
@@ -1260,31 +1234,31 @@ scrollLimit: .res 1
 	LDX #$00
 
 	load_background3:
-		LDY #$20
-		STY NTB_offset
-		STX level
+		LDY #$20 ; nametable 1
+		STY NTB_offset ; placing the initial offset into the highBit
+		STX level ; current index section within the map 
 		LDA nametable1_lvl2, x
-		STA mapIndex
+		STA mapIndex ; the byte used to print the tiles
 
-		JSR DecodeMetatile
-		JSR loadLevel
-		INX
-		CPX #$3c
+		JSR DecodeMetatile ; decode to get the highBit and lowBit value
+		JSR loadLevel ; prints the entire level sequence from left to right
+		INX ; iterator counter
+		CPX #$3c ; total amount of bytes within our nametable labels 
 		BNE load_background3
 
 	LDX #$00
 	STX level
 	load_background4:
-		LDY #$24
-		STY NTB_offset
-		STX level
+		LDY #$24 ; nametable 2
+		STY NTB_offset ; placing the initial offset into the highBit
+		STX level ; current index section within the map 
 		LDA nametable2_lvl2, x
-		STA mapIndex
+		STA mapIndex ; the byte used to print the tiles
 
-		JSR DecodeMetatile
-		JSR loadLevel
-		INX
-		CPX #$3c
+		JSR DecodeMetatile ; decode to get the highBit and lowBit value
+		JSR loadLevel ; prints the entire level sequence from left to right
+		INX ; iterator counter
+		CPX #$3c ; total amount of bytes within our nametable labels 
 		BNE load_background4
 
 	PLA
@@ -1305,31 +1279,31 @@ scrollLimit: .res 1
 	TYA
 	PHA
 
-	LDX #$00
-    LDA PPUSTATUS
+	LDX #$00 
+    LDA PPUSTATUS ; sequence to initialize the base for the first attribute table
     LDA #$23
     STA PPUADDR
     LDA #$c0 
     STA PPUADDR
   	loadattribute:
-		LDY #%00000000
-		STY PPUDATA
+		LDY #%00000000 ; one world uses only one palette
+		STY PPUDATA ; once written in the PPUDATA, the address will update by 1 automically
 		INX
-		CPX #$40
+		CPX #$40 ; 64 bytes 
 		BNE loadattribute
 
 
-    LDX #$00
-    LDA PPUSTATUS
+    LDX #$00 ; reset the counter 
+    LDA PPUSTATUS ; sequence to initialize the base for the second attribute table
     LDA #$27
     STA PPUADDR
     LDA #$c0 
     STA PPUADDR
 	loadattribute1:
-		LDY #%00000000
-		STY PPUDATA
+		LDY #%00000000 ; one world uses only one palette
+		STY PPUDATA ; once written in the PPUDATA, the address will update by 1 automically
 		INX
-		CPX #$40
+		CPX #$40 ; 64 bytes 
 		BNE loadattribute1
 
 	PLA
@@ -1350,32 +1324,32 @@ scrollLimit: .res 1
 	TYA
 	PHA
 
-	LDA PPUSTATUS
+	LDA PPUSTATUS ; sequence to initialize the base for the first attribute table
     LDA #$23
     STA PPUADDR
     LDA #$c0
     STA PPUADDR
 	LDX #$00   
 	loadattribute2:
-		LDY #%01010101
-		STY PPUDATA
+		LDY #%01010101 ; one world uses only one palette
+		STY PPUDATA ; once written in the PPUDATA, the address will update by 1 automically
 		INX
-		CPX #$40
+		CPX #$40 ; 64 bytes 
 		BNE loadattribute2
 
 
 
-    LDA PPUSTATUS
+    LDA PPUSTATUS ; sequence to initialize the base for the second attribute table
     LDA #$27
     STA PPUADDR
     LDA #$c0
     STA PPUADDR   
-	LDX #$00
+	LDX #$00 ; reset the counter 
 	loadattribute3:
-		LDY #%01010101
-		STY PPUDATA
+		LDY #%01010101 ; one world uses only one palette
+		STY PPUDATA ; once written in the PPUDATA, the address will update by 1 automically
 		INX
-		CPX #$40
+		CPX #$40 ; 64 bytes 
 		BNE loadattribute3
 
 	PLA
