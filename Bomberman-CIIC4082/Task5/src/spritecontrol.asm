@@ -71,6 +71,7 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 	INX
 	CPX #$20
 	BNE load_palettes
+
 	
 
 	LDA worldFlag
