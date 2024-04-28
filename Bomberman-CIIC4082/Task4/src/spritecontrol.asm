@@ -78,7 +78,7 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 	BEQ world1
 	CMP #$01
 	BEQ world2
-	JMP main_end
+	JMP vblankwait
 
 	world1:
 		LDA PPUSTATUS ; initialize the nameatable world tile addresss
