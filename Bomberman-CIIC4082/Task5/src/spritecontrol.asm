@@ -2,27 +2,39 @@
 .include "header.inc"
 
 .segment "ZEROPAGE"
-player_x: .res 1
-player_y: .res 1
-;player_dir: .res 1
-frame_position: .res 1
-frame_buffer: .res 1
-dpad: .res 1
-metaIndexX: .res 1 ; Myb
-metaIndexY: .res 1 ; Mxb
-highBit: .res 1 ; hight-bit address for the tiles loaded per level
-lowBit: .res 1 ; low-bit address for the tiles loaded per level
-level: .res 1 ; indicates current position of the map
-NTB_offset: .res 1 ; offset added to the high-bit since  hight-bit calculates from 00 to 08
-mapIndex: .res 1 ; a copy of current level number 
-worldFlag: .res 1 ; indicates the current world number
-scroll: .res 1 ; used to scroll increment scroll horizontally
-scrollLimit: .res 1 ; indicates when the scroll has reached its limit
+player_x: .res 1 ; $00
+player_y: .res 1 ; $01
+player_dir: .res 1 ; $02
+frame_position: .res 1 ; $03
+frame_buffer: .res 1 ; $04
+dpad: .res 1 ; $05
+metaIndexX: .res 1 ; $06 - Mxb 
+metaIndexY: .res 1 ; $07 - Myb
+highBit: .res 1 ; $08 - hight-bit address for the tiles loaded per level
+lowBit: .res 1 ; $09 - low-bit address for the tiles loaded per level
+level: .res 1 ; $0a - indicates current position of the map
+NTB_offset: .res 1 ; $0b - offset added to the high-bit since  hight-bit calculates from 00 to 08
+mapIndex: .res 1 ; $0c - a copy of current level number 
+worldFlag: .res 1 ; $0d - indicates the current world number
+scroll: .res 1 ; $0e - used to scroll increment scroll horizontally
+scrollLimit: .res 1 ; $0f -indicates when the scroll has reached its limit
+absX: .res 1; $10 - the true position of the sprite
+BlockX: .res 1 ; $11
+currentMxb: .res 1 ; $12
+currentMyb: .res 1 ; $13
+currentlvl: .res 1 ; $14
+colX: .res 1 ; $15
+colY: .res 1 ; $16
+overflowFlag: .res 1 ; $17
+TileWalkable: .res 1 ; $18
 
 
 
 
-.exportzp player_x, player_y, frame_position, frame_buffer
+
+
+
+.exportzp player_x, player_y, frame_position, frame_buffer, scroll
 
 
 .segment "CODE"
@@ -50,6 +62,10 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 	; JSR draw_player_left
 	; JSR draw_player_right
 	JSR startscroll
+	JSR FindColPixel
+	JSR FindCurrentLevel
+	JSR checkTileCollision
+
   RTI
 .endproc
 
@@ -187,7 +203,12 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA dpad
 		AND #BTN_LEFT
 		BEQ check_right
+		STA player_dir
 		JSR draw_player_left
+		LDA TileWalkable
+		AND #$01 
+		BEQ check_right
+
 
 		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
 		CMP #$00
@@ -213,11 +234,14 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		MoveToLeftScreen: ; updates the screen from right to left
 			LDA #$ff ; since we are switching screens, I want the sprite to be on the right edge of screen 1
 			STA scroll
+			; LDA $0f
+			; STA player_x
 			LDA #$00 ; when modifying the background, always turn off render with PPUCTRL
 			STA PPUCTRL
 			LDA #%10010000 ; then we turn on the rendering
 			STA PPUCTRL
 			DEC scrollLimit ; once it renders, we set the flag to 0 indicating we are on the first screen
+			DEC overflowFlag
 			JMP check_right 
 
 
@@ -240,7 +264,11 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA dpad
 		AND #BTN_RIGHT
 		BEQ check_up
+		STA player_dir
 		JSR draw_player_right
+		LDA TileWalkable
+		AND #$01
+		BEQ check_up
 
 
 		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
@@ -251,7 +279,7 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 
 
 	ScrollModeRight: 
-		LDA scroll ; 
+		LDA absX ; 
 		CMP #$ff ; checks if the sprite is on the right edge of the first screen using scroll value
 		BEQ updateScreen_checkerLTR ; if it is, then go update the screen
 		JMP scrollRight ; if not, then moving the sprite right
@@ -269,6 +297,9 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA #%10010001 ; turn it back on
 		STA PPUCTRL
 		INC scrollLimit ; then increase the flag to indicate if the sprite is on the second screen
+		INC overflowFlag
+		LDA #$00
+		STA scroll
 
 	scrollRight:
 		INC scroll
@@ -281,14 +312,23 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 		LDA dpad
 		AND #BTN_UP
 		BEQ check_down
-		DEC player_y
+		STA player_dir
 		JSR draw_player_up
+		LDA TileWalkable
+		AND #$01
+		BEQ check_down
+		DEC player_y
+		
 	check_down:
 		LDA dpad
 		AND #BTN_DOWN
 		BEQ check_A
-		INC player_y
+		STA player_dir
 		JSR draw_player_down
+		LDA TileWalkable
+		AND #$01
+		BEQ check_A
+		INC player_y
 	check_A:
 		LDA dpad
 		AND #BTN_A ; checks if the button A is pressed
@@ -1362,6 +1402,458 @@ scrollLimit: .res 1 ; indicates when the scroll has reached its limit
 
 .endproc
 
+.proc FindCurrentLevel
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDA scroll
+	CLC 
+	ADC colX ; at this moment, A = absoluteX
+	STA absX
+
+	LSR A ; shift right A/4 = absX/16
+	LSR A
+	LSR A
+	LSR A
+	STA BlockX ; the byte range for x between 0-15
+
+	LSR A  ; shift right A/2 = absX/4
+	LSR A  
+	STA currentMxb
+
+
+
+	LDY colY
+	TYA 
+	LSR A ; shift right A/4 = player_y/16
+	LSR A ;
+	LSR A ;
+	LSR A ;
+
+	ASL A ; shift left A*2 = player_y * 4
+	ASL A 
+	CLC 
+	ADC currentMxb ; then add player_y into currentMxb
+	STA currentlvl ; the final result is the current player's level
+
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc 
+
+
+.proc FindColPixel
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	check_collision_left:
+		LDA player_dir
+		AND #BTN_LEFT
+		BEQ check_collision_right
+		LDA player_x
+		CLC 
+		SBC #$01
+		STA colX
+		LDY player_y
+		STY colY
+
+	check_collision_right:
+		LDA player_dir
+		AND #BTN_RIGHTx
+		BEQ check_collision_down
+		LDA player_x
+		CLC 
+		ADC #$10
+		STA colX
+
+		LDY player_y
+		STY colY
+
+		
+
+	check_collision_down: 
+		LDA player_dir
+		AND #BTN_DOWN
+		BEQ check_collision_up
+		LDA player_x
+		STA colX
+		LDA player_y
+		CLC 
+		ADC #$10
+		STA colY
+
+
+
+	check_collision_up:
+		LDA player_dir
+		AND #BTN_UP
+		BEQ check_end
+		LDA player_x
+		STA colX
+		LDA player_y
+		CLC 
+		SBC #$01
+		STA colY
+
+
+	check_end:
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc 
+
+
+.proc checkTileCollision
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDX colX
+	LDY colY
+
+	; TXA 
+	; CLC 
+	; ADC scroll
+	; BCS FoundOverflow
+	; LDA #$00
+	; STA overflowFlag
+
+	
+	; CMP #$ff
+	; BEQ checkfornt1
+	; LDA #$00
+	; STA overflowFlag
+	; JMP Worldchekcer
+
+	
+	; checkfornt1:
+	; 	LDA absX
+	; 	CMP #$00
+	; 	BEQ resetoverflow
+	; 	LDA #$01
+	; 	STA overflowFlag
+	; 	JMP Worldchekcer
+	; LDA absX
+	; CMP #$ff
+	; BEQ FoundOverflow
+	; LDA scrollLimit
+	; CMP #$00
+	; BEQ resetoverflow
+
+	; resetoverflow:
+	; 	LDA #$00
+	; 	STA overflowFlag
+
+	; JMP Worldchekcer
+
+
+
+	; FoundOverflow:
+	; 	LDA #$01
+	; 	; STA overflowFlag
+	; 	; CLC 
+	; 	; ADC #$01
+	; 	STA overflowFlag
+
+
+	Worldchekcer: 
+		LDA worldFlag
+		CMP #$01
+		BEQ checkWorld2
+
+		LDA overflowFlag
+		CMP #$01
+		BEQ ntb2_lvl1
+
+		JSR NTB1_colmaplvl1
+		JMP final
+
+	ntb2_lvl1:
+		JSR NTB2_colmaplvl1
+		JMP final
+
+	checkWorld2: 
+		LDA overflowFlag
+		CMP #$01
+		BEQ ntb2_lv2
+		JSR NTB1_colmaplvl2
+		JMP final
+
+	ntb2_lv2:
+		JSR NTB2_colmaplvl2 
+		JMP final
+	final: 
+
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+
+.endproc 
+
+.proc NTB1_colmaplvl1
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable1_lvl1, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc NTB2_colmaplvl1
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable2_lvl1, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc NTB1_colmaplvl2
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable1_lvl2, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc NTB2_colmaplvl2
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable2_lvl2, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
 
@@ -1433,7 +1925,7 @@ nametable1_lvl2:
 	.byte %01001000, %10100000, %00101110, %00100001
 	.byte %01001011, %11100000, %00111111, %00000001
 
-	.byte %01001010, %11101010, %10101110, %00100001
+	.byte %00001010, %11101010, %10101110, %00100001
 	.byte %01000011, %11110000, %00100010, %00100001
 	.byte %01010101, %01010101, %01010101, %01010101
 
