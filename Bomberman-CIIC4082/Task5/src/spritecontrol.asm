@@ -25,12 +25,16 @@ currentMyb: .res 1 ; $13
 currentlvl: .res 1 ; $14
 colX: .res 1 ; $15
 colY: .res 1 ; $16
+overflowFlag: .res 1 ; $17
+TileWalkable: .res 1 ; $18
 
 
 
 
 
-.exportzp player_x, player_y, frame_position, frame_buffer
+
+
+.exportzp player_x, player_y, frame_position, frame_buffer, scroll
 
 
 .segment "CODE"
@@ -58,7 +62,9 @@ colY: .res 1 ; $16
 	; JSR draw_player_left
 	; JSR draw_player_right
 	JSR startscroll
+	JSR FindColPixel
 	JSR FindCurrentLevel
+	JSR checkTileCollision
 
   RTI
 .endproc
@@ -199,6 +205,9 @@ colY: .res 1 ; $16
 		BEQ check_right
 		STA player_dir
 		JSR draw_player_left
+		LDA TileWalkable
+		AND #$01 
+		BEQ check_right
 
 
 		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
@@ -225,11 +234,14 @@ colY: .res 1 ; $16
 		MoveToLeftScreen: ; updates the screen from right to left
 			LDA #$ff ; since we are switching screens, I want the sprite to be on the right edge of screen 1
 			STA scroll
+			; LDA $0f
+			; STA player_x
 			LDA #$00 ; when modifying the background, always turn off render with PPUCTRL
 			STA PPUCTRL
 			LDA #%10010000 ; then we turn on the rendering
 			STA PPUCTRL
 			DEC scrollLimit ; once it renders, we set the flag to 0 indicating we are on the first screen
+			DEC overflowFlag
 			JMP check_right 
 
 
@@ -254,6 +266,9 @@ colY: .res 1 ; $16
 		BEQ check_up
 		STA player_dir
 		JSR draw_player_right
+		LDA TileWalkable
+		AND #$01
+		BEQ check_up
 
 
 		LDA scrollLimit ; flag which checks if the sprite has reached the other nametable
@@ -264,7 +279,7 @@ colY: .res 1 ; $16
 
 
 	ScrollModeRight: 
-		LDA scroll ; 
+		LDA absX ; 
 		CMP #$ff ; checks if the sprite is on the right edge of the first screen using scroll value
 		BEQ updateScreen_checkerLTR ; if it is, then go update the screen
 		JMP scrollRight ; if not, then moving the sprite right
@@ -282,6 +297,9 @@ colY: .res 1 ; $16
 		LDA #%10010001 ; turn it back on
 		STA PPUCTRL
 		INC scrollLimit ; then increase the flag to indicate if the sprite is on the second screen
+		INC overflowFlag
+		LDA #$00
+		STA scroll
 
 	scrollRight:
 		INC scroll
@@ -295,15 +313,22 @@ colY: .res 1 ; $16
 		AND #BTN_UP
 		BEQ check_down
 		STA player_dir
-		DEC player_y
 		JSR draw_player_up
+		LDA TileWalkable
+		AND #$01
+		BEQ check_down
+		DEC player_y
+		
 	check_down:
 		LDA dpad
 		AND #BTN_DOWN
 		BEQ check_A
 		STA player_dir
-		INC player_y
 		JSR draw_player_down
+		LDA TileWalkable
+		AND #$01
+		BEQ check_A
+		INC player_y
 	check_A:
 		LDA dpad
 		AND #BTN_A ; checks if the button A is pressed
@@ -1449,7 +1474,7 @@ colY: .res 1 ; $16
 
 	check_collision_right:
 		LDA player_dir
-		AND #BTN_RIGHT
+		AND #BTN_RIGHTx
 		BEQ check_collision_down
 		LDA player_x
 		CLC 
@@ -1488,7 +1513,6 @@ colY: .res 1 ; $16
 
 	check_end:
 
-
 	PLA
 	TAY
 	PLA
@@ -1498,6 +1522,337 @@ colY: .res 1 ; $16
 	RTS
 
 .endproc 
+
+
+.proc checkTileCollision
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDX colX
+	LDY colY
+
+	; TXA 
+	; CLC 
+	; ADC scroll
+	; BCS FoundOverflow
+	; LDA #$00
+	; STA overflowFlag
+
+	
+	; CMP #$ff
+	; BEQ checkfornt1
+	; LDA #$00
+	; STA overflowFlag
+	; JMP Worldchekcer
+
+	
+	; checkfornt1:
+	; 	LDA absX
+	; 	CMP #$00
+	; 	BEQ resetoverflow
+	; 	LDA #$01
+	; 	STA overflowFlag
+	; 	JMP Worldchekcer
+	; LDA absX
+	; CMP #$ff
+	; BEQ FoundOverflow
+	; LDA scrollLimit
+	; CMP #$00
+	; BEQ resetoverflow
+
+	; resetoverflow:
+	; 	LDA #$00
+	; 	STA overflowFlag
+
+	; JMP Worldchekcer
+
+
+
+	; FoundOverflow:
+	; 	LDA #$01
+	; 	; STA overflowFlag
+	; 	; CLC 
+	; 	; ADC #$01
+	; 	STA overflowFlag
+
+
+	Worldchekcer: 
+		LDA worldFlag
+		CMP #$01
+		BEQ checkWorld2
+
+		LDA overflowFlag
+		CMP #$01
+		BEQ ntb2_lvl1
+
+		JSR NTB1_colmaplvl1
+		JMP final
+
+	ntb2_lvl1:
+		JSR NTB2_colmaplvl1
+		JMP final
+
+	checkWorld2: 
+		LDA overflowFlag
+		CMP #$01
+		BEQ ntb2_lv2
+		JSR NTB1_colmaplvl2
+		JMP final
+
+	ntb2_lv2:
+		JSR NTB2_colmaplvl2 
+		JMP final
+	final: 
+
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+
+.endproc 
+
+.proc NTB1_colmaplvl1
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable1_lvl1, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc NTB2_colmaplvl1
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable2_lvl1, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc NTB1_colmaplvl2
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable1_lvl2, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
+.proc NTB2_colmaplvl2
+
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDY currentlvl
+	LDA BlockX
+	AND #%00000011
+	STA BlockX
+
+	LDA nametable2_lvl2, Y
+	LDX #$00
+	LoopLevel: 
+		CPX BlockX
+		BEQ cheking_block
+		ASL
+		ASL 
+		INX 
+		JMP LoopLevel
+
+
+	cheking_block: 
+		AND #%11000000 
+		CMP #%00000000
+		BNE else 
+		LDA #$01
+		STA TileWalkable
+		JMP colcheckdone
+
+		else: 
+			AND #%11000000
+			CMP #%11000000
+			BNE itsawall
+			LDA #$01
+			STA TileWalkable
+			JMP colcheckdone
+		
+	itsawall:
+	LDA #$00
+	STA TileWalkable
+
+	colcheckdone:
+
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+
+.endproc
+
 
 .segment "VECTORS"
 .addr nmi_handler, reset_handler, irq_handler
@@ -1570,7 +1925,7 @@ nametable1_lvl2:
 	.byte %01001000, %10100000, %00101110, %00100001
 	.byte %01001011, %11100000, %00111111, %00000001
 
-	.byte %01001010, %11101010, %10101110, %00100001
+	.byte %00001010, %11101010, %10101110, %00100001
 	.byte %01000011, %11110000, %00100010, %00100001
 	.byte %01010101, %01010101, %01010101, %01010101
 
