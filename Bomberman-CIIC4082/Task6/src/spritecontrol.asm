@@ -65,6 +65,7 @@ TileWalkable: .res 1 ; $18
 	JSR FindColPixel
 	JSR FindCurrentLevel
 	JSR checkTileCollision
+	JSR CheckLoadWorld
 
   RTI
 .endproc
@@ -1852,6 +1853,50 @@ TileWalkable: .res 1 ; $18
 	RTS
 
 .endproc
+
+
+.proc CheckLoadWorld
+	
+	PHP
+	PHA
+	TXA
+	PHA
+	TYA
+	PHA
+
+	LDA overflowFlag
+	CMP #$01
+	BEQ checkAbsX
+	JMP exit_function
+
+	checkAbsX:
+		LDA absX
+		CMP #$f8
+		BEQ backToMain
+		JMP exit_function
+
+	
+	backToMain:
+		INC worldFlag
+		DEC overflowFlag
+		DEC scrollLimit
+		LDA #$00
+		STA player_x
+		LDA #$c0
+		STA player_y
+		JMP main
+
+
+	exit_function:
+
+	PLA
+	TAY
+	PLA
+	TAX
+	PLA
+	PLP
+	RTS
+.endproc 
 
 
 .segment "VECTORS"
