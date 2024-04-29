@@ -1474,7 +1474,7 @@ TileWalkable: .res 1 ; $18
 
 	check_collision_right:
 		LDA player_dir
-		AND #BTN_RIGHTx
+		AND #BTN_RIGHT
 		BEQ check_collision_down
 		LDA player_x
 		CLC 
